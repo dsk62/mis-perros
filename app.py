@@ -7,7 +7,7 @@ from datetime import datetime, date
 st.set_page_config(page_title="Gestión Canina", layout="wide")
 
 def init_db():
-    # check_same_thread=False es necesario en Streamlit Cloud
+    # check_same_thread=False es necesario para evitar errores en la nube
     conn = sqlite3.connect('perros.db', check_same_thread=False)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS dogs
@@ -42,7 +42,13 @@ with st.sidebar.expander("Añadir Nuevo Perro"):
         name = st.text_input("Nombre")
         breed = st.text_input("Raza")
         color = st.text_input("Color")
-        b_date = st.date_input("Fecha Nacimiento")
+        
+        # CORRECCIÓN: Ampliamos el rango de fechas desde el año 2000 hasta hoy
+        b_date = st.date_input("Fecha Nacimiento", 
+                               value=date.today(),
+                               min_value=date(2000, 1, 1), 
+                               max_value=date.today())
+        
         sex = st.selectbox("Sexo", ["Macho", "Hembra"])
         photo = st.file_uploader("Foto", type=['png', 'jpg', 'jpeg'])
         submit_dog = st.form_submit_button("Guardar Perro")
@@ -54,7 +60,7 @@ with st.sidebar.expander("Añadir Nuevo Perro"):
                 c.execute("INSERT INTO dogs (name, breed, color, birthdate, sex, photo) VALUES (?,?,?,?,?,?)",
                           (name, breed, color, b_date, sex, photo_blob))
                 conn.commit()
-                st.success("Perro guardado. Recarga la página si no aparece.")
+                st.success("Perro guardado. Recarga si no aparece.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error al guardar: {e}")
@@ -65,12 +71,10 @@ selected_dog_id = None
 
 if not dogs_df.empty:
     selected_dog_name = st.sidebar.selectbox("Seleccionar Perro", dogs_df['name'])
-    # CORRECCIÓN IMPORTANTE: Aseguramos que el ID es un entero nativo de Python
     selected_dog_id = int(dogs_df[dogs_df['name'] == selected_dog_name]['id'].values[0])
 
 # --- Vista Principal ---
 if selected_dog_id:
-    # CORRECCIÓN: Verificamos que la consulta devuelva datos antes de leer
     dog_data = pd.read_sql("SELECT * FROM dogs WHERE id = ?", conn, params=(selected_dog_id,))
     
     if not dog_data.empty:
@@ -97,7 +101,12 @@ if selected_dog_id:
         with col_form:
             st.subheader("Nueva Visita / Gasto")
             with st.form("new_visit"):
-                v_date = st.date_input("Fecha", date.today())
+                # CORRECCIÓN: También ampliamos el rango aquí por si quieres meter visitas antiguas
+                v_date = st.date_input("Fecha", 
+                                       value=date.today(),
+                                       min_value=date(2000, 1, 1),
+                                       max_value=date.today())
+                
                 v_weight = st.number_input("Peso (kg)", min_value=0.0, step=0.1, format="%.2f")
                 v_meds = st.text_area("Medicaciones")
                 v_treat = st.text_input("Tratamientos")
@@ -115,7 +124,6 @@ if selected_dog_id:
         with col_data:
             st.subheader("Historial y Gráficas")
             
-            # Cargar visitas
             visits = pd.read_sql("SELECT * FROM visits WHERE dog_id = ? ORDER BY visit_date DESC", 
                                  conn, params=(selected_dog_id,))
             
@@ -138,7 +146,6 @@ if selected_dog_id:
                 else:
                     st.warning("No hay datos de peso suficientes para graficar.")
     else:
-        st.warning("No se pudo cargar la información del perro seleccionado.")
-
+        st.warning("No se pudo cargar la información del perro.")
 else:
     st.info("👈 Añade o selecciona un perro en el menú lateral para comenzar.")
